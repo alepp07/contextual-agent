@@ -181,6 +181,13 @@
     color: var(--muted);
     margin-bottom: 0.6rem;
   }
+
+  .voice-status {
+    margin-left: auto;
+    font-size: 0.72rem;
+  }
+
+  .voice-status.listening { color: #26734d; }
 </style>
 </head>
 <body>
@@ -195,6 +202,9 @@
     <div class="options-row">
       <input type="checkbox" id="speak-toggle" checked />
       <label for="speak-toggle">Read answers aloud</label>
+      <input type="checkbox" id="wake-toggle" />
+      <label for="wake-toggle">Hey Jarvis mode</label>
+      <span class="voice-status" id="voice-status">Off</span>
     </div>
 
     <form id="ask-form">
@@ -212,6 +222,8 @@
     const sendBtn = document.getElementById('send-btn');
     const micBtn = document.getElementById('mic-btn');
     const speakToggle = document.getElementById('speak-toggle');
+    const wakeToggle = document.getElementById('wake-toggle');
+    const voiceStatus = document.getElementById('voice-status');
     let emptyStateCleared = false;
 
     function addBubble(role, text) {
@@ -233,11 +245,15 @@
       return bubble;
     }
 
-    function speak(text) {
-      if (!speakToggle.checked || !window.speechSynthesis) return;
+    function speak(text, force = false) {
+      if ((!speakToggle.checked && !force) || !window.speechSynthesis) return Promise.resolve();
       window.speechSynthesis.cancel(); // stop any answer still being read
-      const utterance = new SpeechSynthesisUtterance(text);
-      window.speechSynthesis.speak(utterance);
+      return new Promise((resolve) => {
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.addEventListener('end', resolve, { once: true });
+        utterance.addEventListener('error', resolve, { once: true });
+        window.speechSynthesis.speak(utterance);
+      });
     }
 
     async function askQuestion(question) {
@@ -262,7 +278,7 @@
         } else {
           const data = await res.json();
           addBubble('assistant', data.answer);
-          speak(data.answer);
+          await speak(data.answer);
         }
       } catch (err) {
         typingLabel.remove();
@@ -280,6 +296,98 @@
       input.value = '';
       await askQuestion(question);
     });
+
+    // One permission click enables hands-free use while this page remains open.
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let wakeRecognition = null;
+    let wakeEnabled = false;
+    let wakePaused = false;
+    let awaitingQuestion = false;
+
+    function setVoiceStatus(text, listening = false) {
+      voiceStatus.textContent = text;
+      voiceStatus.classList.toggle('listening', listening);
+    }
+
+    function startWakeRecognition() {
+      if (!wakeEnabled || wakePaused || !wakeRecognition) return;
+      try { wakeRecognition.start(); } catch (err) { /* already running */ }
+    }
+
+    async function handleHandsFreeQuestion(question) {
+      wakePaused = true;
+      try { wakeRecognition.stop(); } catch (err) { /* already stopped */ }
+      setVoiceStatus('Thinking...');
+      await askQuestion(question);
+      wakePaused = false;
+      setVoiceStatus('Listening for “Hey Jarvis”', true);
+      startWakeRecognition();
+    }
+
+    if (!SpeechRecognition) {
+      wakeToggle.disabled = true;
+      wakeToggle.title = 'Hey Jarvis mode requires Chrome or Edge';
+      setVoiceStatus('Unsupported browser');
+    } else {
+      wakeRecognition = new SpeechRecognition();
+      wakeRecognition.continuous = true;
+      wakeRecognition.interimResults = false;
+      wakeRecognition.lang = 'en-US';
+
+      wakeRecognition.addEventListener('result', async (event) => {
+        for (let i = event.resultIndex; i < event.results.length; i += 1) {
+          if (!event.results[i].isFinal) continue;
+          const transcript = event.results[i][0].transcript.trim();
+
+          if (awaitingQuestion) {
+            awaitingQuestion = false;
+            if (transcript) await handleHandsFreeQuestion(transcript);
+            return;
+          }
+
+          const match = transcript.match(/hey\s+jarvis[,.]?\s*(.*)$/i);
+          if (!match) continue;
+          const questionAfterWakeWord = match[1].trim();
+          if (questionAfterWakeWord) {
+            await handleHandsFreeQuestion(questionAfterWakeWord);
+          } else {
+            wakePaused = true;
+            try { wakeRecognition.stop(); } catch (err) { /* already stopped */ }
+            setVoiceStatus('Ask your question...', true);
+            await speak('Yes?', true);
+            awaitingQuestion = true;
+            wakePaused = false;
+            startWakeRecognition();
+          }
+          return;
+        }
+      });
+
+      wakeRecognition.addEventListener('end', () => {
+        if (wakeEnabled && !wakePaused) startWakeRecognition();
+      });
+
+      wakeRecognition.addEventListener('error', (event) => {
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+          wakeEnabled = false;
+          wakeToggle.checked = false;
+          setVoiceStatus('Microphone denied');
+        }
+      });
+
+      wakeToggle.addEventListener('change', () => {
+        wakeEnabled = wakeToggle.checked;
+        awaitingQuestion = false;
+        if (wakeEnabled) {
+          setVoiceStatus('Listening for “Hey Jarvis”', true);
+          startWakeRecognition();
+        } else {
+          setVoiceStatus('Off');
+          window.speechSynthesis?.cancel();
+          try { wakeRecognition.stop(); } catch (err) { /* already stopped */ }
+        }
+      });
+    }
 
     // --- Voice input: record with MediaRecorder, transcribe via /transcribe ---
     let mediaRecorder = null;
