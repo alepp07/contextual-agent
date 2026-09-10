@@ -13,6 +13,7 @@ import os
 import sys
 import wave
 from collections.abc import Iterable
+from pathlib import Path
 
 import numpy as np
 
@@ -126,8 +127,20 @@ def run(args: argparse.Namespace) -> None:
     from openwakeword.model import Model
 
     print("Preparing the free local wake-word model (first run may download it)...")
-    openwakeword.utils.download_models()
-    model = Model(inference_framework="onnx", vad_threshold=0.5)
+    models_dir = Path(openwakeword.__file__).resolve().parent / "resources" / "models"
+    jarvis_model = models_dir / "hey_jarvis_v0.1.onnx"
+    if not jarvis_model.exists():
+        openwakeword.utils.download_models(model_names=["hey_jarvis"])
+    if not jarvis_model.exists():
+        raise RuntimeError(
+            f"Jarvis model download did not complete. Download hey_jarvis_v0.1.onnx "
+            f"and save it in {models_dir}"
+        )
+    model = Model(
+        wakeword_models=[str(jarvis_model)],
+        inference_framework="onnx",
+        vad_threshold=0.5,
+    )
     engine = pyttsx3.init()
 
     print(f'Listening locally for "Hey Jarvis". Server: {args.server}')
@@ -195,4 +208,3 @@ if __name__ == "__main__":
         run(parse_args())
     except KeyboardInterrupt:
         print("\nJarvis stopped.")
-
