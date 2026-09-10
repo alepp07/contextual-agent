@@ -1,0 +1,5 @@
+openwakeword>=0.6.0,<0.7.0
+sounddevice>=0.5.0,<0.6.0
+pyttsx3>=2.98,<3.0
+requests>=2.32.0,<3.0.0
+
