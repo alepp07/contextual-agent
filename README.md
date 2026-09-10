@@ -78,7 +78,25 @@ curl -X POST http://127.0.0.1:8000/ask \
 pytest tests/ -v
 ```
 
+These are deliberately network-free (no API calls, no model downloads) so
+they run fast and don't need any secrets — which is exactly why they can
+run automatically in CI without you configuring API keys in GitHub.
+
 ## Optional hands-free "Hey Jarvis" mode
+
+### On the deployed Render website
+
+Open the site in Chrome or Edge and enable **Hey Jarvis mode** once. After
+granting microphone permission, say either "Hey Jarvis" and wait for "Yes?",
+or say the wake phrase and question together. No microphone-button press is
+needed for later questions while the page stays open.
+
+Browsers do not allow a website to activate a microphone without an initial
+user action, and may pause listening in a sleeping/background tab. This mode
+uses the browser's built-in speech recognition, so it adds no package or
+hosting cost to the Render service.
+
+### Fully local wake-word companion
 
 `jarvis.py` is a local companion for Windows, macOS, or Linux. It listens for
 the wake phrase locally, says "Yes?", records one question until you stop
@@ -111,10 +129,6 @@ the wake-word and spoken-output parts run locally at no added cost. Useful
 tuning options include `--wake-threshold 0.6` to reduce accidental activations
 and `--silence-threshold 0.02` for a noisy room. Stop the companion with
 `Ctrl+C`.
-
-These are deliberately network-free (no API calls, no model downloads) so
-they run fast and don't need any secrets — which is exactly why they can
-run automatically in CI without you configuring API keys in GitHub.
 
 ## Deploying to Render (free, no credit card)
 
