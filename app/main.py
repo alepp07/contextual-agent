@@ -13,11 +13,11 @@ FastAPI's biggest practical advantages over plain Flask.
 
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, File, UploadFile
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from app.agent import run_agent
+from app.agent import run_agent, client as groq_client
 from app.embed_store import build_index, INDEX_DIR
 
 app = FastAPI(
@@ -53,6 +53,21 @@ def health():
 def ask(payload: AskRequest):
     answer = run_agent(payload.question)
     return {"answer": answer}
+
+
+@app.post("/transcribe")
+async def transcribe(file: UploadFile = File(...)):
+    """
+    Speech-to-text via Groq's Whisper endpoint. Reuses the same GROQ_API_KEY
+    and account as the chat model -- no separate signup or cost, just a
+    different Groq API endpoint.
+    """
+    audio_bytes = await file.read()
+    transcription = groq_client.audio.transcriptions.create(
+        file=(file.filename or "audio.webm", audio_bytes),
+        model="whisper-large-v3-turbo",
+    )
+    return {"text": transcription.text}
 
 
 # Mounted LAST and deliberately at "/" -- FastAPI checks routes in the order
