@@ -1,0 +1,16 @@
+This service combines two things into one: a RAG pipeline that answers
+questions from your own documents, and an agent that can also search the
+live web or do exact math when your documents alone aren't enough.
+
+Retrieval-Augmented Generation (RAG) works by splitting documents into
+chunks, converting each chunk into a vector embedding, and storing them in
+a searchable index. When a question comes in, it's embedded the same way,
+compared against the index, and the most relevant chunks are pasted into
+the prompt before the model answers.
+
+An agent adds a decision loop on top of that: instead of only ever
+answering from documents, it can choose between multiple tools -- searching
+this document index, searching the live web, or running a calculation --
+based on what the question actually needs.
+
+Replace this file with your own documents once the service is deployed.
