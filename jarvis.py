@@ -139,53 +139,60 @@ def run(args: argparse.Namespace) -> None:
     model = Model(
         wakeword_models=[str(jarvis_model)],
         inference_framework="onnx",
-        vad_threshold=0.5,
+        vad_threshold=args.vad_threshold,
     )
     engine = pyttsx3.init()
 
     print(f'Listening locally for "Hey Jarvis". Server: {args.server}')
     print("Press Ctrl+C to stop. No audio is uploaded before activation.")
 
-    with sd.RawInputStream(
-        samplerate=SAMPLE_RATE,
-        blocksize=FRAME_SAMPLES,
-        dtype="int16",
-        channels=1,
-    ) as stream:
-        while True:
-            data, overflowed = stream.read(FRAME_SAMPLES)
-            if overflowed:
-                print("[audio overflow]", file=sys.stderr)
-            prediction = model.predict(np.frombuffer(bytes(data), dtype=np.int16))
-            if jarvis_score(prediction) < args.wake_threshold:
-                continue
+    while True:
+        # Close the microphone before speaking. Reopening it afterward avoids
+        # a Windows audio-driver stall caused by pyttsx3 sharing the device.
+        with sd.RawInputStream(
+            samplerate=SAMPLE_RATE,
+            blocksize=FRAME_SAMPLES,
+            dtype="int16",
+            channels=1,
+        ) as wake_stream:
+            while True:
+                data, overflowed = wake_stream.read(FRAME_SAMPLES)
+                if overflowed:
+                    print("[audio overflow]", file=sys.stderr)
+                prediction = model.predict(np.frombuffer(bytes(data), dtype=np.int16))
+                if jarvis_score(prediction) >= args.wake_threshold:
+                    break
 
-            print("Wake word detected")
-            speak(engine, args.acknowledgement)
-            model.reset()
+        print("Wake word detected")
+        speak(engine, args.acknowledgement)
+        model.reset()
 
-            # Drop audio accumulated while the acknowledgement was playing.
-            while stream.read_available >= FRAME_SAMPLES:
-                stream.read(FRAME_SAMPLES)
-
+        with sd.RawInputStream(
+            samplerate=SAMPLE_RATE,
+            blocksize=FRAME_SAMPLES,
+            dtype="int16",
+            channels=1,
+        ) as command_stream:
             print("Listening for your question...")
             frames = record_command(
-                stream,
+                command_stream,
                 silence_threshold=args.silence_threshold,
                 max_seconds=args.max_seconds,
             )
-            if not frames:
-                print("No question detected; returning to wake-word mode.")
-                speak(engine, "I didn't hear a question.")
-                continue
 
-            try:
-                question, answer = request_answer(args.server, frames, args.timeout)
-                print(f"You: {question}\nJarvis: {answer}")
-                speak(engine, answer)
-            except Exception as exc:
-                print(f"Request failed: {exc}", file=sys.stderr)
-                speak(engine, "Sorry, I could not reach the assistant.")
+        if not frames:
+            print("No question detected; returning to wake-word mode.")
+            speak(engine, "I didn't hear a question.")
+            continue
+
+        print("Question recorded. Transcribing and asking the agent...")
+        try:
+            question, answer = request_answer(args.server, frames, args.timeout)
+            print(f"You: {question}\nJarvis: {answer}")
+            speak(engine, answer)
+        except Exception as exc:
+            print(f"Request failed: {exc}", file=sys.stderr)
+            speak(engine, "Sorry, I could not reach the assistant.")
 
 
 def parse_args() -> argparse.Namespace:
@@ -195,8 +202,9 @@ def parse_args() -> argparse.Namespace:
         default=os.getenv("JARVIS_SERVER_URL", "http://127.0.0.1:8000"),
         help="contextual-agent base URL",
     )
-    parser.add_argument("--wake-threshold", type=float, default=0.5)
-    parser.add_argument("--silence-threshold", type=float, default=0.015)
+    parser.add_argument("--wake-threshold", type=float, default=0.25)
+    parser.add_argument("--vad-threshold", type=float, default=0.3)
+    parser.add_argument("--silence-threshold", type=float, default=0.008)
     parser.add_argument("--max-seconds", type=float, default=15.0)
     parser.add_argument("--timeout", type=float, default=90.0)
     parser.add_argument("--acknowledgement", default="Yes?")
