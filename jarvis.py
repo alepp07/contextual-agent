@@ -10,7 +10,10 @@ from __future__ import annotations
 import argparse
 import io
 import os
+import platform
+import subprocess
 import sys
+import threading
 import wave
 from collections.abc import Iterable
 from pathlib import Path
@@ -61,6 +64,20 @@ def wav_bytes(frames: list[bytes]) -> bytes:
 
 
 def speak(engine, text: str) -> None:
+    if platform.system() == "Windows":
+        command = (
+            "Add-Type -AssemblyName System.Speech; "
+            "$text = [Console]::In.ReadToEnd(); "
+            "$voice = New-Object System.Speech.Synthesis.SpeechSynthesizer; "
+            "$voice.Speak($text)"
+        )
+        subprocess.run(
+            ["powershell", "-NoProfile", "-Command", command],
+            input=text,
+            text=True,
+            check=True,
+        )
+        return
     engine.say(text)
     engine.runAndWait()
 
@@ -92,10 +109,11 @@ def record_command(stream, *, silence_threshold: float, max_seconds: float) -> l
     return frames if speech_started else []
 
 
-def request_answer(server_url: str, frames: list[bytes], timeout: float) -> tuple[str, str]:
+def transcribe_question(server_url: str, frames: list[bytes], timeout: float) -> str:
     import requests
 
     base_url = server_url.rstrip("/")
+    print("Transcribing...")
     transcription = requests.post(
         f"{base_url}/transcribe",
         files={"file": ("question.wav", wav_bytes(frames), "audio/wav")},
@@ -105,14 +123,46 @@ def request_answer(server_url: str, frames: list[bytes], timeout: float) -> tupl
     question = transcription.json()["text"].strip()
     if not question:
         raise RuntimeError("The transcription was empty")
+    return question
 
+
+def ask_agent(server_url: str, question: str, timeout: float) -> str:
+    import requests
+
+    print("Asking the agent...")
+    base_url = server_url.rstrip("/")
     response = requests.post(
         f"{base_url}/ask",
         json={"question": question},
         timeout=timeout,
     )
     response.raise_for_status()
-    return question, response.json()["answer"]
+    return response.json()["answer"]
+
+
+def warm_server(server_url: str, timeout: float) -> None:
+    import requests
+
+    try:
+        print("Warming the Render service in the background...")
+        response = requests.get(f"{server_url.rstrip('/')}/health", timeout=timeout)
+        response.raise_for_status()
+        print("Render service is ready.")
+    except Exception as exc:
+        print(f"Render warm-up failed: {exc}", file=sys.stderr)
+
+
+def is_end_command(question: str) -> bool:
+    cleaned = question.lower().translate(str.maketrans("", "", ".,!?"))
+    normalized = " ".join(cleaned.split())
+    return normalized in {
+        "goodbye",
+        "goodbye jarvis",
+        "stop listening",
+        "stop listening jarvis",
+        "that's all",
+        "that is all",
+    }
 
 
 def jarvis_score(prediction: dict[str, float]) -> float:
@@ -141,7 +191,12 @@ def run(args: argparse.Namespace) -> None:
         inference_framework="onnx",
         vad_threshold=args.vad_threshold,
     )
-    engine = pyttsx3.init()
+    engine = None if platform.system() == "Windows" else pyttsx3.init()
+    threading.Thread(
+        target=warm_server,
+        args=(args.server, args.timeout),
+        daemon=True,
+    ).start()
 
     print(f'Listening locally for "Hey Jarvis". Server: {args.server}')
     print("Press Ctrl+C to stop. No audio is uploaded before activation.")
@@ -167,32 +222,44 @@ def run(args: argparse.Namespace) -> None:
         speak(engine, args.acknowledgement)
         model.reset()
 
-        with sd.RawInputStream(
-            samplerate=SAMPLE_RATE,
-            blocksize=FRAME_SAMPLES,
-            dtype="int16",
-            channels=1,
-        ) as command_stream:
-            print("Listening for your question...")
-            frames = record_command(
-                command_stream,
-                silence_threshold=args.silence_threshold,
-                max_seconds=args.max_seconds,
-            )
+        first_question = True
+        while True:
+            with sd.RawInputStream(
+                samplerate=SAMPLE_RATE,
+                blocksize=FRAME_SAMPLES,
+                dtype="int16",
+                channels=1,
+            ) as command_stream:
+                prompt = "your question" if first_question else "a follow-up"
+                print(f"Listening for {prompt}...")
+                frames = record_command(
+                    command_stream,
+                    silence_threshold=args.silence_threshold,
+                    max_seconds=args.max_seconds,
+                )
 
-        if not frames:
-            print("No question detected; returning to wake-word mode.")
-            speak(engine, "I didn't hear a question.")
-            continue
+            if not frames:
+                print("No speech detected; returning to wake-word mode.")
+                if first_question:
+                    speak(engine, "I didn't hear a question.")
+                break
 
-        print("Question recorded. Transcribing and asking the agent...")
-        try:
-            question, answer = request_answer(args.server, frames, args.timeout)
-            print(f"You: {question}\nJarvis: {answer}")
-            speak(engine, answer)
-        except Exception as exc:
-            print(f"Request failed: {exc}", file=sys.stderr)
-            speak(engine, "Sorry, I could not reach the assistant.")
+            print("Question recorded.")
+            try:
+                question = transcribe_question(args.server, frames, args.timeout)
+                print(f"You: {question}")
+                if is_end_command(question):
+                    speak(engine, "Goodbye.")
+                    break
+
+                answer = ask_agent(args.server, question, args.timeout)
+                print(f"Jarvis: {answer}")
+                speak(engine, answer)
+                first_question = False
+            except Exception as exc:
+                print(f"Request failed: {exc}", file=sys.stderr)
+                speak(engine, "Sorry, I could not reach the assistant.")
+                break
 
 
 def parse_args() -> argparse.Namespace:
