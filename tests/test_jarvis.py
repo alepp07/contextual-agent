@@ -1,6 +1,6 @@
 import numpy as np
 
-from jarvis import jarvis_score, rms_level, should_stop_recording, wav_bytes
+from jarvis import is_end_command, jarvis_score, rms_level, should_stop_recording, wav_bytes
 
 
 def test_rms_level_for_silence_and_signal():
@@ -21,6 +21,12 @@ def test_recording_stops_only_after_speech_then_silence():
     )
 
 
+def test_conversation_end_commands():
+    assert is_end_command("Goodbye, Jarvis!")
+    assert is_end_command("stop listening")
+    assert not is_end_command("Tell me about goodbye messages")
+
+
 def test_jarvis_score_ignores_other_models():
     assert jarvis_score({"alexa": 0.9, "hey_jarvis": 0.7}) == 0.7
     assert jarvis_score({"alexa": 0.9}) == 0.0
@@ -30,4 +36,3 @@ def test_wav_bytes_creates_wav_container():
     audio = wav_bytes([np.zeros(1280, dtype=np.int16).tobytes()])
     assert audio.startswith(b"RIFF")
     assert b"WAVE" in audio[:16]
-
