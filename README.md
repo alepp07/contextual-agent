@@ -78,6 +78,40 @@ curl -X POST http://127.0.0.1:8000/ask \
 pytest tests/ -v
 ```
 
+## Optional hands-free "Hey Jarvis" mode
+
+`jarvis.py` is a local companion for Windows, macOS, or Linux. It listens for
+the wake phrase locally, says "Yes?", records one question until you stop
+speaking, sends that question to this API, and reads the answer aloud. You do
+not need to press the microphone button after starting it.
+
+Wake-word detection uses openWakeWord's included **hey jarvis** model and does
+not upload the always-on microphone stream. Only the question after activation
+is sent to the server. The feature is optional and deliberately kept out of
+the server's `requirements.txt`, so it does not increase the Render image size.
+
+```powershell
+# Terminal 1: run the API locally
+uvicorn app.main:app --reload
+
+# Terminal 2: install and start the voice companion
+pip install -r voice_requirements.txt
+python jarvis.py
+```
+
+To use the deployed service instead of a locally running API:
+
+```powershell
+python jarvis.py --server https://contextual-agent.onrender.com
+```
+
+The first run downloads openWakeWord's pretrained models. The existing
+`GROQ_API_KEY` is still required by the API for transcription and responses;
+the wake-word and spoken-output parts run locally at no added cost. Useful
+tuning options include `--wake-threshold 0.6` to reduce accidental activations
+and `--silence-threshold 0.02` for a noisy room. Stop the companion with
+`Ctrl+C`.
+
 These are deliberately network-free (no API calls, no model downloads) so
 they run fast and don't need any secrets — which is exactly why they can
 run automatically in CI without you configuring API keys in GitHub.
