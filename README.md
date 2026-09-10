@@ -120,7 +120,7 @@ python jarvis.py
 To use the deployed service instead of a locally running API:
 
 ```powershell
-python jarvis.py --server https://contextual-agent.onrender.com
+python jarvis.py --server https://contextual-agent-1.onrender.com
 ```
 
 The first run downloads openWakeWord's pretrained models. The existing
