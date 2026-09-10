@@ -14,6 +14,7 @@ FastAPI's biggest practical advantages over plain Flask.
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from app.agent import run_agent
@@ -52,3 +53,11 @@ def health():
 def ask(payload: AskRequest):
     answer = run_agent(payload.question)
     return {"answer": answer}
+
+
+# Mounted LAST and deliberately at "/" -- FastAPI checks routes in the order
+# they're registered, so /health and /ask above still match first. Anything
+# that doesn't match an API route (including "/" itself) falls through to
+# this static file server, which serves static/index.html as the frontend.
+STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
+app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
