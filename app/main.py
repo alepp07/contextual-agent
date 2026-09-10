@@ -13,7 +13,7 @@ FastAPI's biggest practical advantages over plain Flask.
 
 from pathlib import Path
 
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -51,7 +51,10 @@ def health():
 
 @app.post("/ask", response_model=AskResponse)
 def ask(payload: AskRequest):
-    answer = run_agent(payload.question)
+    try:
+        answer = run_agent(payload.question)
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     return {"answer": answer}
 
 
