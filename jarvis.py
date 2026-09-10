@@ -65,16 +65,25 @@ def wav_bytes(frames: list[bytes]) -> bytes:
 
 def speak(engine, text: str) -> None:
     if platform.system() == "Windows":
+        speech_text = (
+            text.replace("\u202f", " ")
+            .replace("\u00a0", " ")
+            .replace("×", " times ")
+            .replace("=", " equals ")
+        )
         command = (
             "Add-Type -AssemblyName System.Speech; "
+            "[Console]::InputEncoding = [Text.UTF8Encoding]::new($false); "
             "$text = [Console]::In.ReadToEnd(); "
             "$voice = New-Object System.Speech.Synthesis.SpeechSynthesizer; "
             "$voice.Speak($text)"
         )
         subprocess.run(
             ["powershell", "-NoProfile", "-Command", command],
-            input=text,
+            input=speech_text,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             check=True,
         )
         return
