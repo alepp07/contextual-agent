@@ -5,6 +5,7 @@ Same loop as learn-agents, now choosing between three tools instead of two.
 """
 
 import json
+import time
 
 from groq import Groq
 
@@ -24,6 +25,24 @@ SYSTEM_PROMPT = (
 )
 
 
+def _create_completion(messages):
+    """Retry transient provider failures instead of turning them into HTTP 500s."""
+    last_error = None
+    for attempt in range(3):
+        try:
+            return client.chat.completions.create(
+                model=MODEL,
+                messages=messages,
+                tools=TOOLS,
+                tool_choice="auto",
+            )
+        except Exception as exc:
+            last_error = exc
+            if attempt < 2:
+                time.sleep(1.5 * (attempt + 1))
+    raise RuntimeError(f"Language-model request failed after 3 attempts: {last_error}")
+
+
 def run_agent(user_message: str, verbose: bool = False) -> str:
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
@@ -31,12 +50,7 @@ def run_agent(user_message: str, verbose: bool = False) -> str:
     ]
 
     for step in range(1, MAX_STEPS + 1):
-        response = client.chat.completions.create(
-            model=MODEL,
-            messages=messages,
-            tools=TOOLS,
-            tool_choice="auto",
-        )
+        response = _create_completion(messages)
         message = response.choices[0].message
 
         if not message.tool_calls:
@@ -55,7 +69,10 @@ def run_agent(user_message: str, verbose: bool = False) -> str:
                 print(f"[step {step}] calling {name}({args})")
 
             func = FUNCTION_MAP.get(name)
-            result = func(**args) if func else f"Unknown tool: {name}"
+            try:
+                result = func(**args) if func else f"Unknown tool: {name}"
+            except Exception as exc:
+                result = f"Tool {name} failed: {exc}"
 
             messages.append({"role": "tool", "tool_call_id": call.id, "content": result})
 
