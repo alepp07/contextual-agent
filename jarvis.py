@@ -199,14 +199,16 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Hands-free Hey Jarvis companion")
     parser.add_argument(
         "--server",
-        default=os.getenv("JARVIS_SERVER_URL", "http://127.0.0.1:8000"),
+        default=os.getenv(
+            "JARVIS_SERVER_URL", "https://contextual-agent-1.onrender.com"
+        ),
         help="contextual-agent base URL",
     )
     parser.add_argument("--wake-threshold", type=float, default=0.25)
     parser.add_argument("--vad-threshold", type=float, default=0.3)
     parser.add_argument("--silence-threshold", type=float, default=0.008)
     parser.add_argument("--max-seconds", type=float, default=15.0)
-    parser.add_argument("--timeout", type=float, default=90.0)
+    parser.add_argument("--timeout", type=float, default=120.0)
     parser.add_argument("--acknowledgement", default="Yes?")
     return parser.parse_args()
 
