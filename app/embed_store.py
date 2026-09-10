@@ -1,35 +1,37 @@
 """
 embed_store.py -- local embeddings, a plain numpy vector index, and cosine search.
 
-Carried over from the learn-rag project. Runs entirely locally -- no API
-key, no cost -- using sentence-transformers.
+Uses fastembed (ONNX Runtime) rather than sentence-transformers (PyTorch) --
+the same all-MiniLM-L6-v2 model, but without pulling in PyTorch, which alone
+can use 300-500MB before loading anything. That matters specifically because
+this service targets Render's free tier, which caps memory at 512MB total.
 """
 
 import json
 from pathlib import Path
 
 import numpy as np
-from sentence_transformers import SentenceTransformer
+from fastembed import TextEmbedding
 
 from app.ingest import load_and_chunk_directory
 
-EMBED_MODEL_NAME = "all-MiniLM-L6-v2"
+EMBED_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 INDEX_DIR = Path(__file__).resolve().parent.parent / "index"
 
 _model = None
 
 
-def get_model() -> SentenceTransformer:
+def get_model() -> TextEmbedding:
     global _model
     if _model is None:
-        _model = SentenceTransformer(EMBED_MODEL_NAME)
+        _model = TextEmbedding(model_name=EMBED_MODEL_NAME)
     return _model
 
 
 def embed_texts(texts: list[str]) -> np.ndarray:
     model = get_model()
-    vectors = model.encode(texts, show_progress_bar=False, convert_to_numpy=True)
-    return vectors.astype(np.float32)
+    vectors = list(model.embed(texts))
+    return np.array(vectors, dtype=np.float32)
 
 
 def build_index(data_dir: str = "data") -> None:

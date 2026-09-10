@@ -38,11 +38,18 @@ This is what "agentic RAG" means in practice.
 
 | Piece | Tool | Cost |
 |---|---|---|
-| Embeddings | sentence-transformers, local | Free (CPU) |
+| Embeddings | fastembed (ONNX Runtime), local | Free (CPU, low memory) |
 | Generation | Groq API | Free tier |
 | Web search | ddgs (DuckDuckGo) | Free, no key |
-| Hosting | Hugging Face Spaces (Docker) | Free, no card required |
+| Hosting | Render (Web Service, free tier) | Free, no card required |
 | CI | GitHub Actions | Free for public repos |
+
+Note on the embedding library: this project uses `fastembed` rather than
+`sentence-transformers`, specifically because Render's free tier caps
+memory at 512MB total, and `sentence-transformers` pulls in PyTorch, which
+alone can use 300-500MB before loading any model. `fastembed` uses ONNX
+Runtime instead and supports the same `all-MiniLM-L6-v2` model, so nothing
+else about the embedding quality changes -- just the memory footprint.
 
 ## Run it locally
 
@@ -75,19 +82,26 @@ These are deliberately network-free (no API calls, no model downloads) so
 they run fast and don't need any secrets — which is exactly why they can
 run automatically in CI without you configuring API keys in GitHub.
 
-## Deploying to Hugging Face Spaces (free, no credit card)
+## Deploying to Render (free, no credit card)
 
-1. Create a free account at [huggingface.co](https://huggingface.co/join).
-2. Go to **New Space** → give it a name → **SDK: Docker** → **Hardware: CPU basic (free)**.
-3. In your new Space's **Settings → Variables and secrets**, add a secret named `GROQ_API_KEY` with your Groq key. This keeps it out of your git history entirely.
-4. Push this project to the Space's git repository (shown on the Space's page after creation):
-   ```bash
-   git remote add space https://huggingface.co/spaces/your-username/your-space-name
-   git push space main
-   ```
-5. The Space builds your Dockerfile automatically and gives you a live URL like `https://your-username-your-space-name.hf.space`. You can hit `/ask` directly, or open `/docs` for the interactive API explorer — this is the link to put on your resume/LinkedIn.
+Note: as of mid-2026, Hugging Face Spaces moved its Docker SDK behind a
+paid plan for personal accounts, so this project deploys to Render instead
+-- confirmed still free with no card required as of writing.
 
-Note: your GitHub repo and your Hugging Face Space are two separate git remotes pointing at the same code — GitHub is your portfolio source of truth, the Space is where it actually runs live.
+1. Create a free account at [render.com](https://dashboard.render.com/register) (GitHub sign-in works, no card needed).
+2. Push this project to GitHub first if you haven't already (Render deploys from a Git repo).
+3. In the Render Dashboard, click **New** → **Web Service**.
+4. Connect your GitHub repo.
+5. Render should auto-detect the Dockerfile. If asked, set:
+   - **Runtime**: Docker
+   - **Instance type**: **Free**
+6. Under **Environment**, add an environment variable: `GROQ_API_KEY` = your key. This keeps it out of your git history entirely.
+7. Click **Create Web Service**. Render builds your Dockerfile and deploys automatically on every push to `main` after this.
+8. Once live, you'll get a URL like `https://contextual-agent.onrender.com` -- visit `/docs` for the interactive API explorer. This is the link to put on your resume/LinkedIn.
+
+**Two free-tier behaviors worth knowing:**
+- The service **spins down after 15 minutes of no traffic**, and takes about a minute to spin back up on the next request. This is normal, not a bug -- if a demo feels slow on first load, that's why.
+- The filesystem is **ephemeral**: anything written to disk (like the built vector index) is lost on redeploy or spin-down. The app rebuilds the index automatically on startup, so this is handled for you, but it does mean every cold start re-embeds `data/` from scratch, adding a few seconds.
 
 ## What this project demonstrates (for anyone reviewing it)
 
