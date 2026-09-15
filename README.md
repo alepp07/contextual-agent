@@ -34,6 +34,17 @@ Dockerfile          <- packages the service for Hugging Face Spaces
 own documents as one of its tools, alongside web search and calculation.
 This is what "agentic RAG" means in practice.
 
+
+## Voice assistant roadmap
+
+The next stage adds an optional hands-free **Hey Jarvis** client around the
+existing API, including local wake-word detection, speech transcription,
+spoken answers, multi-turn conversation, and Render cold-start handling.
+
+See the [Hey Jarvis voice-assistant roadmap](docs/hey-jarvis-roadmap.md) for
+the planned architecture, privacy model, reliability priorities, and upcoming
+milestones.
+
 ## Cost breakdown (all $0)
 
 | Piece | Tool | Cost |
