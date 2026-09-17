@@ -64,14 +64,33 @@ else about the embedding quality changes -- just the memory footprint.
 
 ## Run it locally
 
-```bash
-python -m venv venv
-venv\Scripts\activate          # Windows
-pip install -r requirements.txt
-$env:GROQ_API_KEY="your-key-here"
+Run these commands from the repository root. Use the block for your shell.
 
-uvicorn app.main:app --reload
+**Windows (PowerShell)**
+
+```powershell
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+$env:GROQ_API_KEY = "your-key-here"
+
+python -m uvicorn app.main:app --reload
 ```
+
+**macOS / Linux (Bash)**
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+python -m pip install -r requirements.txt
+export GROQ_API_KEY="your-key-here"
+
+python -m uvicorn app.main:app --reload
+```
+
+Replace `your-key-here` with your Groq API key in your terminal. The variable
+applies to the current shell session; set it again when using a new terminal.
+Do not paste your real key into this README or commit it to the repository.
 
 Visit `http://127.0.0.1:8000/docs` for interactive API documentation
 (generated automatically by FastAPI from the code itself), or call it
