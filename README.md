@@ -121,6 +121,33 @@ The health endpoint returns `{"status":"ok"}`. It checks API availability;
 it does not test the Groq connection or guarantee that a question will succeed.
 When using a deployed instance, replace `http://127.0.0.1:8000` with its service URL.
 
+## API reference
+
+| Method | Path | Request | Response |
+|---|---|---|---|
+| GET | `/health` | No body | `{"status":"ok"}` |
+| POST | `/ask` | JSON with a `question` string | JSON with an `answer` string |
+| POST | `/transcribe` | Multipart upload with a `file` field | JSON with a `text` string |
+
+To transcribe an audio recording from **macOS / Linux (Bash)**:
+
+```bash
+curl -X POST http://127.0.0.1:8000/transcribe \
+  -F "file=@recording.wav"
+```
+
+Run this from the directory containing `recording.wav`, or replace the filename
+with the path to your recording. Let curl set the multipart content type and
+boundary automatically. In **Windows PowerShell**, the equivalent command is:
+
+```powershell
+curl.exe -X POST http://127.0.0.1:8000/transcribe -F "file=@recording.wav"
+```
+
+Transcription uses the server's `GROQ_API_KEY`; clients do not need to include
+that key in the upload. The endpoint returns text. Playing a spoken answer
+requires text-to-speech in the client.
+
 ## Run the tests
 
 ```bash
