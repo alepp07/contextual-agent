@@ -102,6 +102,25 @@ curl -X POST http://127.0.0.1:8000/ask \
   -d '{"question": "What is this service?"}'
 ```
 
+For **Windows PowerShell**, use `Invoke-RestMethod`:
+
+```powershell
+$body = @{ question = "What is 29 times 40?" } | ConvertTo-Json
+$response = Invoke-RestMethod -Uri "http://127.0.0.1:8000/ask" `
+  -Method Post -ContentType "application/json" -Body $body
+$response.answer
+```
+
+To check that the API is responding before sending a question:
+
+```powershell
+Invoke-RestMethod -Uri "http://127.0.0.1:8000/health"
+```
+
+The health endpoint returns `{"status":"ok"}`. It checks API availability;
+it does not test the Groq connection or guarantee that a question will succeed.
+When using a deployed instance, replace `http://127.0.0.1:8000` with its service URL.
+
 ## Run the tests
 
 ```bash
