@@ -148,6 +148,20 @@ Transcription uses the server's `GROQ_API_KEY`; clients do not need to include
 that key in the upload. The endpoint returns text. Playing a spoken answer
 requires text-to-speech in the client.
 
+## Troubleshooting API requests
+
+| Symptom | What to check |
+|---|---|
+| `422 Unprocessable Entity` from `/ask` | Send a JSON object containing a `question` string, with `Content-Type: application/json`. |
+| `422 Unprocessable Entity` from `/transcribe` | Upload the recording as multipart form data under the field name `file`. |
+| `405 Method Not Allowed` | Use `POST` for `/ask` and `/transcribe`. Opening either URL in a browser's address bar sends a `GET` request. |
+| `500 Internal Server Error` | Inspect the server logs for the underlying exception. A successful health check alone does not confirm that Groq requests will succeed. |
+| curl cannot read `recording.wav` | Check the file path on the machine running curl. The path after `@` refers to a local file, not a file on the API server. |
+
+Use `/docs` to try the endpoints with their expected request fields. When
+reporting an issue, include the endpoint, HTTP method, status code, and a
+redacted error message; leave API keys out of screenshots and logs.
+
 ## Run the tests
 
 ```bash
