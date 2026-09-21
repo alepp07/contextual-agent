@@ -27,7 +27,7 @@ tests/
 └── test_tools.py   <- offline tests, run automatically by CI
 .github/workflows/
 └── ci.yml          <- runs tests on every push, free on GitHub Actions
-Dockerfile          <- packages the service for Hugging Face Spaces
+Dockerfile          <- packages the API; listens on container port 7860
 ```
 
 `search_thesis` is the new piece: the agent can now choose to search your
@@ -120,6 +120,26 @@ Invoke-RestMethod -Uri "http://127.0.0.1:8000/health"
 The health endpoint returns `{"status":"ok"}`. It checks API availability;
 it does not test the Groq connection or guarantee that a question will succeed.
 When using a deployed instance, replace `http://127.0.0.1:8000` with its service URL.
+
+## Run with Docker locally
+
+Start Docker and run these commands from the repository root. First set
+`GROQ_API_KEY` in your current terminal using the PowerShell or Bash command
+in **Run it locally** above.
+
+```bash
+docker build -t contextual-agent .
+docker run --rm --name contextual-agent -p 127.0.0.1:8000:7860 -e GROQ_API_KEY contextual-agent
+```
+
+These Docker commands work in both Bash and PowerShell. The port mapping
+connects local port `8000` to container port `7860`, matching the Dockerfile.
+The `-e GROQ_API_KEY` option passes the variable from your current shell into
+the container.
+
+Once startup completes, open `http://127.0.0.1:8000/docs`. Stop the container
+with `Ctrl+C`; `--rm` removes it after it exits. If port `8000` is already in
+use, change the mapping to `127.0.0.1:8001:7860` and open port `8001` instead.
 
 ## API reference
 
