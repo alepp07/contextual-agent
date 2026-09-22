@@ -1,0 +1,26 @@
+# Repository history
+.git
+.gitignore
+
+# Local Python environments
+venv/
+env/
+.venv/
+
+# Python bytecode and test caches
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/.pytest_cache/
+
+# Local environment files; configure secrets at runtime
+.env
+.env.*
+!.env.example
+!.env.sample
+
+# Editor and operating-system files
+.vscode/
+.idea/
+**/.DS_Store
+**/Thumbs.db
